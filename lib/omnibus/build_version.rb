@@ -1,5 +1,5 @@
 #
-# Copyright 2012-2018 Chef Software, Inc.
+# Copyright 2012-2014 Chef Software, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-require "time" unless defined?(Time.zone_offset)
+require "time"
 
 module Omnibus
   # Provides methods for generating Omnibus project build version
@@ -34,7 +34,7 @@ module Omnibus
     #
     # @see Omnibus::BuildVersion#semver
     # @see Time#strftime
-    TIMESTAMP_FORMAT = "%Y%m%d%H%M%S".freeze
+    TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"
 
     class << self
       # @see (BuildVersion#git_describe)
@@ -124,21 +124,12 @@ module Omnibus
       build_tag
     end
 
-    # We'll attempt to retrieve the timestamp from the Jenkin's set BUILD_TIMESTAMP
-    # or fall back to BUILD_ID environment variable. This will ensure platform specfic
-    # packages for the same build will share the same timestamp.
+    # We'll attempt to retrive the timestamp from the Jenkin's set BUILD_ID
+    # environment variable. This will ensure platform specfic packages for the
+    # same build will share the same timestamp.
     def build_start_time
       @build_start_time ||= begin
-                              if ENV["BUILD_TIMESTAMP"]
-                                begin
-                                  Time.strptime(ENV["BUILD_TIMESTAMP"], "%Y-%m-%d_%H-%M-%S")
-                                rescue ArgumentError
-                                  error_message =  "BUILD_TIMESTAMP environment variable "
-                                  error_message << "should be in YYYY-MM-DD_hh-mm-ss "
-                                  error_message << "format."
-                                  raise ArgumentError, error_message
-                                end
-                              elsif ENV["BUILD_ID"]
+                              if ENV["BUILD_ID"]
                                 begin
                                   Time.strptime(ENV["BUILD_ID"], "%Y-%m-%d_%H-%M-%S")
                                 rescue ArgumentError
@@ -151,6 +142,21 @@ module Omnibus
                                 Time.now.utc
                               end
                             end.strftime(TIMESTAMP_FORMAT)
+    end
+
+    # Generates a version string compliant with Datadog agent stable/nightly builds
+    # It works as a patch on top of Omnibus::BuildVersion#semver.
+    # Returns:
+    #  - For stable builds: `semver` output
+    #  - For nightly builds: AGENT_VERSION.git.COMMITS_SINCE.GIT_SHA
+    #    (where `AGENT_VERSION` is an environment variable)
+    def dd_agent_format
+      agent_version = semver
+      if ENV['AGENT_VERSION'] and ENV['AGENT_VERSION'].length > 1 and agent_version.include? "git"
+        agent_version = ENV['AGENT_VERSION'] + "." + agent_version.split("+")[1]
+      end
+      # Replace any remaining `+` with `.` to comply with S3 object names
+      agent_version.gsub('+', '.')
     end
 
     # Generates a version string by running
@@ -166,7 +172,8 @@ module Omnibus
     # @return [String]
     def git_describe
       @git_describe ||= begin
-        cmd = shellout("git describe --tags", cwd: @path)
+        # We only match tags starting with a number to discards non-agent ones (like: dca-1.1.0)
+        cmd = shellout("git describe --tags --match \"[0-9]*\"", cwd: @path)
 
         if cmd.exitstatus == 0
           cmd.stdout.chomp
@@ -280,7 +287,7 @@ module Omnibus
     #
     # @todo Compute this once and store the result in an instance variable
     def version_composition
-      version_regexp = /^v?(\d+)\.(\d+)\.(\d+)/
+      version_regexp = /^(?:[a-z]+-)?v?(\d+)\.(\d+)\.(\d+)/
 
       if match = version_regexp.match(git_describe)
         match[1..3]
