@@ -783,6 +783,7 @@ module Omnibus
         merge("CXXFLAGS" => compiler_flags["CFLAGS"])
         .merge("CPPFLAGS" => compiler_flags["CFLAGS"])
         .merge("OMNIBUS_INSTALL_DIR" => install_dir)
+        .merge("LD_LIBRARY_PATH" => "#{install_dir}/embedded/lib")
     end
     expose :with_standard_compiler_flags
 

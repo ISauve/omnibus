@@ -337,6 +337,7 @@ module Omnibus
       current_library = nil
       bad_libs = {}
 
+      ENV["LD_LIBRARY_PATH"] = "#{project.install_dir}/embedded/lib"
       read_shared_libs("find #{project.install_dir}/ -type f -regextype posix-extended ! -regex '#{regexp}' | xargs ldd") do |line|
         case line
         when /^(.+):$/

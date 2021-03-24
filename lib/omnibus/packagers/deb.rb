@@ -393,7 +393,8 @@ module Omnibus
 
       # Execute the build command
       Dir.chdir(Config.package_dir) do
-        shellout!("fakeroot dpkg-deb #{compression_params} -D --build #{staging_dir} #{package_name}")
+
+        shellout!("LD_LIBRARY_PATH='' fakeroot dpkg-deb #{compression_params} -D --build #{staging_dir} #{package_name}")
       end
     end
 
